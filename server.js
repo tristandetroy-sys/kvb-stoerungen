@@ -6,11 +6,23 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 
 /**
- * WORKAROUND:
- * Wandelt alle deutschen Umlaute in HTML-Entities um.
- * Dadurch ist das Ergebnis 100 % encoding-unabhängig.
+ * 1️⃣ Repariert typische kaputte UTF-8 → � Zeichen
  */
-function fixUmlauts(str = "") {
+function repairBrokenUmlauts(str = "") {
+  return str
+    .replace(/H�he/g, "Höhe")
+    .replace(/Glash�ttenstr/g, "Glashüttenstr")
+    .replace(/Stra�e/g, "Straße")
+    .replace(/S�rth/g, "Sürth")
+    .replace(/Z�ndorf/g, "Zündorf")
+    .replace(/Wei�er/g, "Weißer")
+    .replace(/K�ln/g, "Köln");
+}
+
+/**
+ * 2️⃣ Wandelt Umlaute in HTML-Entities (encoding-sicher)
+ */
+function toEntities(str = "") {
   return str
     .replace(/ä/g, "&auml;")
     .replace(/ö/g, "&ouml;")
@@ -21,34 +33,36 @@ function fixUmlauts(str = "") {
     .replace(/ß/g, "&szlig;");
 }
 
+const ALLOWED_LINES = ["1", "3", "4", "5", "7", "12", "15"];
+
 app.get("/", async (req, res) => {
   try {
     const response = await fetch(
       "https://www.kvb.koeln/fahrtinfo/betriebslage/index.html"
     );
 
-    // ⚠️ absichtlich KEIN Encoding-Handling mehr
-    const html = await response.text();
-
-    const $ = cheerio.load(html);
+    const rawHtml = await response.text();
+    const $ = cheerio.load(rawHtml);
 
     const stoerungen = [];
 
     $("#stoer_bahn li.list-group-item").each((_, el) => {
-      const linieRaw = $(el).find(".liniennummer").text().trim();
-      const textRaw = $(el).find("b").text().trim();
+      const linie = $(el).find(".liniennummer").text().trim();
+      if (!ALLOWED_LINES.includes(linie)) return;
 
-      if (!linieRaw || !textRaw) return;
+      let text = $(el).find("b").text().trim();
+      if (!text) return;
 
-      stoerungen.push({
-        linie: fixUmlauts(linieRaw),
-        text: fixUmlauts(textRaw)
-      });
+      text = repairBrokenUmlauts(text);
+      text = toEntities(text);
+
+      stoerungen.push({ linie, text });
     });
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.send(buildHTML(stoerungen));
   } catch (err) {
+    console.error(err);
     res.status(500).send("Fehler beim Laden der KVB-Daten");
   }
 });
@@ -62,59 +76,87 @@ function buildHTML(stoerungen) {
   <title>KVB St&ouml;rungen</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- TRMNL / Screenshot-optimiert -->
+  <!-- TRMNL Screenshot-optimiert -->
   <style>
     body {
+      margin: 0;
+      padding: 32px;
+      background: #fff;
+      color: #000;
       font-family: Arial, Helvetica, sans-serif;
-      background: #ffffff;
-      color: #000000;
-      padding: 24px;
     }
 
     h1 {
+      text-align: center;
+      font-size: 28px;
+      margin-bottom: 28px;
+    }
+
+    .grid {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .card {
+      width: 200px;
+      border: 3px solid #000;
+      border-radius: 18px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .emoji {
+      font-size: 40px;
+      margin-bottom: 8px;
+    }
+
+    .line {
       font-size: 22px;
-      margin-bottom: 20px;
-    }
-
-    .item {
-      margin-bottom: 18px;
-    }
-
-    .linie {
       font-weight: bold;
-      font-size: 18px;
-      margin-bottom: 4px;
+      margin-bottom: 8px;
     }
 
     .text {
-      font-size: 16px;
-      line-height: 1.35;
+      font-size: 14px;
+      line-height: 1.3;
+    }
+
+    .ok {
+      font-size: 64px;
+      text-align: center;
     }
 
     .footer {
-      margin-top: 30px;
+      margin-top: 24px;
+      text-align: center;
       font-size: 12px;
-      color: #444;
     }
   </style>
 </head>
 
 <body>
-  <h1>KVB St&ouml;rungen</h1>
+  <h1>KVB Betriebslage</h1>
 
   ${
     stoerungen.length === 0
-      ? "<p>Keine aktuellen St&ouml;rungen.</p>"
-      : stoerungen
-          .map(
-            s => `
-    <div class="item">
-      <div class="linie">Linie ${s.linie}</div>
-      <div class="text">${s.text}</div>
-    </div>
-  `
-          )
-          .join("")
+      ? `<div class="ok">✅<br>Keine St&ouml;rungen</div>`
+      : `
+        <div class="grid">
+          ${stoerungen
+            .map(
+              s => `
+            <div class="card">
+              <div class="emoji">🚧</div>
+              <div class="line">Linie ${s.linie}</div>
+              <div class="text">${s.text}</div>
+            </div>
+          `
+            )
+            .join("")}
+        </div>
+      `
   }
 
   <div class="footer">
