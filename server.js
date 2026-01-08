@@ -6,7 +6,7 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 
 /**
- * 1️⃣ Repariert typische kaputte UTF-8 → � Zeichen
+ * Repariert bekannte kaputte UTF-8-Umlaute (�)
  */
 function repairBrokenUmlauts(str = "") {
   return str
@@ -20,7 +20,7 @@ function repairBrokenUmlauts(str = "") {
 }
 
 /**
- * 2️⃣ Wandelt Umlaute in HTML-Entities (encoding-sicher)
+ * Wandelt Umlaute in HTML-Entities (100 % encoding-sicher)
  */
 function toEntities(str = "") {
   return str
@@ -73,63 +73,90 @@ function buildHTML(stoerungen) {
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <title>KVB St&ouml;rungen</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KVB Betriebslage</title>
 
-  <!-- TRMNL Screenshot-optimiert -->
+  <!-- FIXE TRMNL-GRÖSSE -->
+  <meta name="viewport" content="width=800, height=480, initial-scale=1">
+
   <style>
-    body {
+    /* === TRMNL CANVAS === */
+    html, body {
+      width: 800px;
+      height: 480px;
       margin: 0;
-      padding: 32px;
-      background: #fff;
-      color: #000;
+      padding: 0;
+      overflow: hidden;
+      background: #ffffff;
+      color: #000000;
       font-family: Arial, Helvetica, sans-serif;
+    }
+
+    body {
+      box-sizing: border-box;
+      padding: 24px;
     }
 
     h1 {
       text-align: center;
       font-size: 28px;
-      margin-bottom: 28px;
+      margin: 0 0 20px 0;
     }
 
+    /* === GRID === */
     .grid {
-      display: flex;
-      justify-content: center;
-      gap: 24px;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-gap: 16px;
     }
 
     .card {
-      width: 200px;
       border: 3px solid #000;
-      border-radius: 18px;
-      padding: 16px;
+      border-radius: 16px;
+      padding: 12px;
       text-align: center;
+      height: 140px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
     }
 
     .emoji {
-      font-size: 40px;
-      margin-bottom: 8px;
+      font-size: 36px;
+      margin-bottom: 6px;
     }
 
     .line {
-      font-size: 22px;
+      font-size: 20px;
       font-weight: bold;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .text {
       font-size: 14px;
-      line-height: 1.3;
+      line-height: 1.25;
+      overflow: hidden;
     }
 
     .ok {
+      height: 300px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
       font-size: 64px;
       text-align: center;
     }
 
+    .ok span {
+      font-size: 20px;
+      margin-top: 10px;
+    }
+
     .footer {
-      margin-top: 24px;
+      position: absolute;
+      bottom: 12px;
+      width: 100%;
       text-align: center;
       font-size: 12px;
     }
@@ -141,10 +168,16 @@ function buildHTML(stoerungen) {
 
   ${
     stoerungen.length === 0
-      ? `<div class="ok">✅<br>Keine St&ouml;rungen</div>`
+      ? `
+        <div class="ok">
+          ✅
+          <span>Keine St&ouml;rungen</span>
+        </div>
+      `
       : `
         <div class="grid">
           ${stoerungen
+            .slice(0, 6)
             .map(
               s => `
             <div class="card">
