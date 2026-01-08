@@ -62,7 +62,7 @@
       margin: 0;
       font-size: 16px;
       line-height: 1.35;
-      white-space: pre-wrap; /* wichtig für sauberen Umbruch */
+      white-space: pre-wrap; /* sauberer Zeilenumbruch */
     }
 
     .ok-screen {
@@ -100,20 +100,20 @@
       .then(r => r.text())
       .then(html => {
         const doc = new DOMParser().parseFromString(html, "text/html");
+        const listItems = Array.from(doc.querySelectorAll("#stoer_bahn li.list-group-item"));
 
-        const headers = Array.from(doc.querySelectorAll("h3"));
         let issues = [];
 
-        headers.forEach(h3 => {
-          const match = h3.textContent.trim().match(/^(\d+)/);
-          if (match && lines.includes(match[1])) {
-            const descEl = h3.nextElementSibling;
-            const desc = descEl ? descEl.textContent.trim() : "";
-            issues.push({
-              line: match[1],
-              desc: desc
-            });
-          }
+        listItems.forEach(li => {
+          const numEl = li.querySelector("h3.liniennummer");
+          if (!numEl) return;
+          const line = numEl.textContent.trim();
+          if (!lines.includes(line)) return;
+
+          const textEl = li.querySelector("div.col-xs-9");
+          const desc = textEl ? textEl.textContent.trim().replace(/\s+/g, ' ') : "";
+
+          issues.push({ line, desc });
         });
 
         content.innerHTML = "";
