@@ -10,19 +10,18 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: white;
-      color: black;
+      background: #fff;
+      color: #000;
       margin: 0;
-      padding: 0;
       height: 100vh;
       display: flex;
-      align-items: center;
       justify-content: center;
+      align-items: center;
     }
 
     .container {
       width: 100%;
-      max-width: 700px;
+      max-width: 720px;
       padding: 20px;
       box-sizing: border-box;
     }
@@ -30,49 +29,44 @@
     h1 {
       text-align: center;
       font-size: 28px;
-      margin-bottom: 24px;
+      margin-bottom: 22px;
     }
 
-    .line {
-      border: 2px solid black;
-      border-radius: 14px;
+    .card {
+      border: 2px solid #000;
+      border-radius: 16px;
       padding: 16px;
-      margin-bottom: 18px;
+      margin-bottom: 16px;
       display: flex;
       gap: 16px;
       align-items: flex-start;
     }
 
     .emoji {
-      font-size: 40px;
+      font-size: 42px;
       line-height: 1;
-      margin-top: 4px;
     }
 
-    .text {
-      flex: 1;
-    }
-
-    .text h2 {
+    .content h2 {
       margin: 0 0 6px 0;
       font-size: 22px;
     }
 
-    .text p {
+    .content p {
       margin: 0;
       font-size: 16px;
       line-height: 1.35;
-      white-space: pre-wrap; /* sauberer Zeilenumbruch */
+      white-space: pre-wrap;
     }
 
-    .ok-screen {
-      border: 3px solid black;
-      border-radius: 18px;
+    .ok {
+      border: 3px solid #000;
+      border-radius: 20px;
       padding: 40px 20px;
       text-align: center;
     }
 
-    .ok-screen .emoji {
+    .ok .emoji {
       font-size: 64px;
       margin-bottom: 10px;
     }
@@ -80,74 +74,81 @@
     .updated {
       text-align: center;
       font-size: 14px;
-      margin-top: 20px;
+      margin-top: 18px;
     }
   </style>
 </head>
-<body>
 
+<body>
   <div class="container">
-    <h1>🚋 KVB – Betriebslage</h1>
-    <div id="content">Lade …</div>
-    <div class="updated" id="time"></div>
+    <h1>🚋 KVB Betriebslage</h1>
+    <div id="output">Lade Daten …</div>
+    <div class="updated" id="updated"></div>
   </div>
 
   <script>
-    const lines = ["1","3","4","5","7","12","15"];
-    const content = document.getElementById("content");
+    const LINES = ["1", "3", "4", "5", "7", "12", "15"];
+    const output = document.getElementById("output");
 
     fetch("/api/stoerungen")
-      .then(r => r.text())
-      .then(html => {
+      .then(res => res.arrayBuffer())
+      .then(buffer => {
+        // 🔥 WICHTIG: korrektes Encoding erzwingen
+        const decoder = new TextDecoder("iso-8859-1");
+        const html = decoder.decode(buffer);
+
         const doc = new DOMParser().parseFromString(html, "text/html");
-        const listItems = Array.from(doc.querySelectorAll("#stoer_bahn li.list-group-item"));
+        const items = doc.querySelectorAll("#stoer_bahn li.list-group-item");
 
-        let issues = [];
+        let results = [];
 
-        listItems.forEach(li => {
-          const numEl = li.querySelector("h3.liniennummer");
-          if (!numEl) return;
-          const line = numEl.textContent.trim();
-          if (!lines.includes(line)) return;
+        items.forEach(item => {
+          const num = item.querySelector("h3.liniennummer");
+          if (!num) return;
 
-          const textEl = li.querySelector("div.col-xs-9");
-          const desc = textEl ? textEl.textContent.trim().replace(/\s+/g, ' ') : "";
+          const line = num.textContent.trim();
+          if (!LINES.includes(line)) return;
 
-          issues.push({ line, desc });
+          const textBox = item.querySelector(".col-xs-9");
+          const text = textBox
+            ? textBox.textContent.replace(/\s+/g, " ").trim()
+            : "";
+
+          results.push({ line, text });
         });
 
-        content.innerHTML = "";
+        output.innerHTML = "";
 
-        if (issues.length === 0) {
-          content.innerHTML = `
-            <div class="ok-screen">
+        if (results.length === 0) {
+          output.innerHTML = `
+            <div class="ok">
               <div class="emoji">✅</div>
               <h2>Keine Störungen</h2>
               <p>Linien 1 · 3 · 4 · 5 · 7 · 12 · 15</p>
             </div>
           `;
         } else {
-          issues.forEach(issue => {
+          results.forEach(r => {
             const div = document.createElement("div");
-            div.className = "line";
+            div.className = "card";
             div.innerHTML = `
               <div class="emoji">🚧</div>
-              <div class="text">
-                <h2>Linie ${issue.line}</h2>
-                <p>${issue.desc}</p>
+              <div class="content">
+                <h2>Linie ${r.line}</h2>
+                <p>${r.text}</p>
               </div>
             `;
-            content.appendChild(div);
+            output.appendChild(div);
           });
         }
 
-        document.getElementById("time").textContent =
+        document.getElementById("updated").textContent =
           "Letzte Aktualisierung: " + new Date().toLocaleTimeString("de-DE");
       })
-      .catch(() => {
-        content.innerHTML = "⚠️ Fehler beim Laden der Störungsdaten";
+      .catch(err => {
+        output.innerHTML = "⚠️ Fehler beim Laden der KVB-Daten";
+        console.error(err);
       });
   </script>
-
 </body>
 </html>
