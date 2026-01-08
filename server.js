@@ -4,18 +4,29 @@ import fetch from "node-fetch";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static("public"));
-
+// 🔁 Proxy zur KVB – korrektes UTF-8 erzwingen
 app.get("/api/stoerungen", async (req, res) => {
   try {
-    const response = await fetch("https://www.kvb.koeln/betriebslage");
-    const html = await response.text();
-    res.send(html);
-  } catch (e) {
-    res.status(500).send("Fehler beim Abrufen der KVB-Daten");
+    const response = await fetch(
+      "https://www.kvb.koeln/fahrtinfo/betriebslage/"
+    );
+
+    // 🔥 WICHTIG: als Buffer lesen
+    const buffer = await response.arrayBuffer();
+
+    // 🔥 UTF-8 EXPLIZIT
+    const text = new TextDecoder("utf-8").decode(buffer);
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(text);
+  } catch (err) {
+    res.status(500).send("Fehler beim Laden der KVB-Daten");
   }
 });
 
+// Frontend ausliefern
+app.use(express.static("public"));
+
 app.listen(PORT, () => {
-  console.log(`🚋 Server läuft auf http://localhost:${PORT}`);
+  console.log("Server läuft auf Port", PORT);
 });
